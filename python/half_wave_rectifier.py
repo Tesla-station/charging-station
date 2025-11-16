@@ -242,7 +242,7 @@ def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
 
 def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
     power_loss_func = lambda x: compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
-    result, _ = quad(power_loss_func, 0, 2*np.pi)
+    result, _ = quad(power_loss_func, 0, 2*np.pi, limit=1000)
     P_loss_avg = (1.0 / (2.0 * np.pi)) * result
     return P_loss_avg
 
