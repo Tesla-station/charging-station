@@ -240,6 +240,22 @@ def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
     i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
     return abs(Vak * i)
 
+def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
+    power_loss_func = lambda x: compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
+    result, _ = quad(power_loss_func, 0, 2*np.pi)
+    P_loss_avg = (1.0 / (2.0 * np.pi)) * result
+    return P_loss_avg
+
+def plot_power_loss_with_alpha(alpha_array, Vm, E, esr, ileak, tr, tf, freq, beta):
+    y = [compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for alpha in alpha_array]
+    plt.plot(alpha_array, y)
+    plt.xlabel("Firing Angle (rad)")
+    plt.ylabel("Average Power Loss (W)")
+    plt.title("Average Power Loss vs Firing Angle")
+    plt.grid(True)
+    plt.show()
+
+
 def plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha, beta):
     y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for xi in x]
     plt.plot(x, y)
@@ -261,10 +277,11 @@ if __name__ == "__main__":
     ileak = 0.05  # leakage current in Amperes
     Vm = np.sqrt(2)*Vrms
     alpha1, beta = find_range_of_alphas_and_beta(E, Vm)
-
+    alphas = _make_alpha_array(alpha1, beta, step=0.01)
     x = np.linspace(0, 2*np.pi, 10000)
     # plot_Vak_with_t_simplified(x, alpha1, beta, Vm, E, v_drop)
+    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
     plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
     plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak=ileak, tr=tr, tf=tf, freq=freq)
-    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
     plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha1, beta)
+    plot_power_loss_with_alpha(alphas, Vm, E, esr, ileak, tr, tf, freq, beta)
