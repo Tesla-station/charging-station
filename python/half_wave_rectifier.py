@@ -64,31 +64,31 @@ def i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak):
 def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
     # Convert rise/fall times to angular ranges
     omega = 2*np.pi*freq
-    d_theta_r = omega * tr   # rise-time converted to angle (but falling voltage!)
-    d_theta_f = omega * tf   # fall-time converted to angle (but rising voltage!)
+    d_theta_r = omega * tr   # rise-time converted to angle
+    d_theta_f = omega * tf   # fall-time converted to angle
 
     natural_I = i_t(x, alpha, beta, Vm, E, esr)
 
-    # Region 1: before α (natural waveform)
+    # Region 1: before α (Ileak)
     if x < alpha:
         return ileak
 
     # Region 2: α → α + d_theta_r (rising current to natural I)
     if alpha <= x < alpha + d_theta_r:
         m, b = line_from_points(alpha, ileak, alpha + d_theta_r, i_t(alpha + d_theta_r, alpha, beta, Vm, E, esr))
-        return m*x + b  # FALL: natural → v_drop
+        return m*x + b  # RISE: ileak → natural
 
-    # Region 3: constant Ileak
+    # Region 3: The natural current region
     if alpha + d_theta_r <= x < beta:
         return natural_I
 
     # Region 4: β → β + theta_f (falling current back to ileak)
     if beta <= x < beta + d_theta_f:
-        m, b = line_from_points(beta, i_t(beta, alpha, beta, Vm, E, esr), beta + d_theta_f, ileak)
-        return m*x + b # RISE: v_drop → natural
+        m, b = line_from_points(beta, i_t(beta, alpha, beta, Vm, E, esr), beta + d_theta_f, -ileak)
+        return m*x + b # FALL: natural → -ileak
 
-    # Region 5: after β + theta_f (Ileak)
-    return ileak
+    # Region 5: after β + theta_f (-Ileak)
+    return -ileak
 
 
 def Vak_including_drop_simplified(x, alpha, beta, Vm, E, v_drop):
@@ -116,8 +116,8 @@ def line_from_points(x1, y1, x2, y2):
 def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
     # Convert rise/fall times to angular ranges
     omega = 2*np.pi*freq
-    d_theta_r = omega * tr   # rise-time converted to angle (but falling voltage!)
-    d_theta_f = omega * tf   # fall-time converted to angle (but rising voltage!)
+    d_theta_r = omega * tr   # rise-time converted to angle 
+    d_theta_f = omega * tf   # fall-time converted to angle 
 
     natural_v = vs_t(x, Vm) - E
 
@@ -163,9 +163,47 @@ def plot_i_with_t(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
 
 def compute_Iavg(Vm, E, esr, alpha, beta) -> float:
     i = lambda x: i_t(x, alpha, beta, Vm, E, esr)
-    result, _ = quad(i, alpha, beta)
+    result, _ = quad(i, 0, 2*np.pi, limit=1000)
     Iavg = (1.0 / (2.0 * np.pi)) * result
     return Iavg
+
+def compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
+    integral, _ = quad(lambda x: i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)**2, 0, 2.0 * np.pi, limit=1000)
+    return np.sqrt(integral / (2.0 * np.pi))
+
+def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms):
+    Vak = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
+    i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
+    return Vak * i + esr * i**2
+
+def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms):
+    power_loss_func = lambda x: compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms)
+    result, _ = quad(power_loss_func, 0, 2*np.pi, limit=1000)
+    P_loss_avg = (1.0 / (2.0 * np.pi)) * result
+    return P_loss_avg
+
+def plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+    y = []
+    for alpha in alpha_array:
+        Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
+        P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms)
+        y.append(P_loss_avg)
+    plt.plot(alpha_array, y)
+    plt.xlabel("Firing Angle (rad)")
+    plt.ylabel("Average Power Loss (W)")
+    plt.title("Average Power Loss vs Firing Angle")
+    plt.grid(True)
+    plt.show()
+
+def plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha, beta):
+    y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for xi in x]
+    plt.plot(x, y)
+    plt.xlabel("Angle (rad)")
+    plt.ylabel("Power Loss (W)")
+    plt.title("Power Loss vs Angle")
+    plt.grid(True)
+    plt.show()
+
 
 def time_of_charging(Vrms, E, esr, C, step: float = 0.01, degrees: bool = True, show: bool = True,
                      charging_time_scale: str = 'linear', initial_soc: float = 0.0, required_charging_time: float = 0.0):
@@ -235,53 +273,24 @@ def time_of_charging(Vrms, E, esr, C, step: float = 0.01, degrees: bool = True, 
 
     return alphas, Iavg, charging_time    
 
-def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
-    Vak = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
-    i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
-    return abs(Vak * i)
-
-def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
-    power_loss_func = lambda x: compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
-    result, _ = quad(power_loss_func, 0, 2*np.pi, limit=1000)
-    P_loss_avg = (1.0 / (2.0 * np.pi)) * result
-    return P_loss_avg
-
-def plot_power_loss_with_alpha(alpha_array, Vm, E, esr, ileak, tr, tf, freq, beta):
-    y = [compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for alpha in alpha_array]
-    plt.plot(alpha_array, y)
-    plt.xlabel("Firing Angle (rad)")
-    plt.ylabel("Average Power Loss (W)")
-    plt.title("Average Power Loss vs Firing Angle")
-    plt.grid(True)
-    plt.show()
-
-
-def plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha, beta):
-    y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for xi in x]
-    plt.plot(x, y)
-    plt.xlabel("Angle (rad)")
-    plt.ylabel("Power Loss (W)")
-    plt.title("Power Loss vs Angle")
-    plt.grid(True)
-    plt.show()
-
 if __name__ == "__main__":
-    Vrms = 110
+    Vrms = 60
     E = 12
-    esr = 0.25
+    esr = 4.256
     capacity = 100
-    v_drop = 0.1
-    tr = 50*10**(-6)  # rise time in seconds
-    tf = 80*10**(-6)  # fall time in seconds
-    freq = 100  # frequency in Hz
-    ileak = 0.05  # leakage current in Amperes
+    v_drop = 1.2
+    tr = 10*10**(-6)  # rise time in seconds
+    tf = 5*10**(-6)  # fall time in seconds
+    freq = 50  # frequency in Hz
+    ileak = 0.02  # leakage current in Amperes
     Vm = np.sqrt(2)*Vrms
     alpha1, beta = find_range_of_alphas_and_beta(E, Vm)
     alphas = _make_alpha_array(alpha1, beta, step=0.01)
     x = np.linspace(0, 2*np.pi, 10000)
     # plot_Vak_with_t_simplified(x, alpha1, beta, Vm, E, v_drop)
-    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
-    plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
-    plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak=ileak, tr=tr, tf=tf, freq=freq)
-    plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha1, beta)
-    plot_power_loss_with_alpha(alphas, Vm, E, esr, ileak, tr, tf, freq, beta)
+    time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
+    # plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
+    # plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak=ileak, tr=tr, tf=tf, freq=freq)
+    # plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha1, beta)
+    # plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+    # print(compute_i_t_including_leakage_rms(alpha1, beta, Vm, E, esr, ileak, tr, tf, freq))
