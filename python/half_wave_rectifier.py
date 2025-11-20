@@ -133,7 +133,7 @@ def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
     d_theta_r = omega * tr   # rise-time converted to angle 
     d_theta_f = omega * tf   # fall-time converted to angle 
 
-    natural_v = vs_t(x, Vm) - E - v_drop
+    natural_v = vs_t(x, Vm) - E
 
     # Region 1: before α (natural waveform)
     if x < alpha:
