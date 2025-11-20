@@ -8,7 +8,6 @@ def _norm_angle(theta: float) -> float:
     """
     return np.mod(theta, 2 * np.pi)
 
-
 def find_range_of_alphas_and_beta(E: float, Vm: float):
     """
     Return two angles (alpha1, alpha2) in radians in [0, 2*pi)
@@ -17,6 +16,21 @@ def find_range_of_alphas_and_beta(E: float, Vm: float):
     normalized into [0, 2*pi).
     """
     frac = E / Vm
+    if abs(frac) > 1.0:
+        raise ValueError(f"|E/Vm| must be <= 1. Got {frac}")
+    a = np.arcsin(frac)
+    t1 = _norm_angle(a)
+    t2 = _norm_angle(np.pi - a)
+    return t1, t2
+
+def find_range_of_alphas_and_beta_with_v_drop(E: float, v_drop, Vm: float):
+    """
+    Return two angles (alpha1, alpha2) in radians in [0, 2*pi)
+    that satisfy sin(theta) = E/Vm. Raises ValueError if |E/Vm|>1.
+    The two solutions are arcsin(frac) and pi - arcsin(frac),
+    normalized into [0, 2*pi).
+    """
+    frac = (E + v_drop) / Vm
     if abs(frac) > 1.0:
         raise ValueError(f"|E/Vm| must be <= 1. Got {frac}")
     a = np.arcsin(frac)
@@ -55,19 +69,19 @@ def i_t(x, alpha, beta, Vm, E, esr):
     else:
         return 0.0  # for 2pi-(beta-alpha)
     
-def i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak):
+def i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop):
     if alpha <= x <= beta:
-        return (Vm*np.sin(x)-E)/esr
+        return (Vm*np.sin(x) - E - v_drop)/esr
     else:
         return ileak  # for 2pi-(beta-alpha)
 
-def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
+def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     # Convert rise/fall times to angular ranges
     omega = 2*np.pi*freq
     d_theta_r = omega * tr   # rise-time converted to angle
     d_theta_f = omega * tf   # fall-time converted to angle
 
-    natural_I = i_t(x, alpha, beta, Vm, E, esr)
+    natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
 
     # Region 1: before α (Ileak)
     if x < alpha:
@@ -119,7 +133,7 @@ def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
     d_theta_r = omega * tr   # rise-time converted to angle 
     d_theta_f = omega * tf   # fall-time converted to angle 
 
-    natural_v = vs_t(x, Vm) - E
+    natural_v = vs_t(x, Vm) - E - v_drop
 
     # Region 1: before α (natural waveform)
     if x < alpha:
@@ -152,8 +166,8 @@ def plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
     plt.grid(True)  
     plt.show()
 
-def plot_i_with_t(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
-    y = [i_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for xi in x]
+def plot_i_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+    y = [i_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
     plt.xlabel("Angle (rad)")
     plt.ylabel("Current i (A)")
@@ -167,13 +181,13 @@ def compute_Iavg(Vm, E, esr, alpha, beta) -> float:
     Iavg = (1.0 / (2.0 * np.pi)) * result
     return Iavg
 
-def compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, tr, tf, freq):
-    integral, _ = quad(lambda x: i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)**2, 0, 2.0 * np.pi, limit=1000)
+def compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+    integral, _ = quad(lambda x: i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)**2, 0, 2.0 * np.pi, limit=1000)
     return np.sqrt(integral / (2.0 * np.pi))
 
 def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms):
     Vak = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
-    i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
+    i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     return Vak * i + esr * i**2
 
 def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms):
@@ -185,7 +199,7 @@ def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, f
 def plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     y = []
     for alpha in alpha_array:
-        Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, tr, tf, freq)
+        Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
         P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms)
         y.append(P_loss_avg)
     plt.plot(alpha_array, y)
@@ -284,13 +298,13 @@ if __name__ == "__main__":
     freq = 50  # frequency in Hz
     ileak = 0.02  # leakage current in Amperes
     Vm = np.sqrt(2)*Vrms
-    alpha1, beta = find_range_of_alphas_and_beta(E, Vm)
+    alpha1, beta = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm) # get alpha1 and beta considering v_drop
     alphas = _make_alpha_array(alpha1, beta, step=0.01)
     x = np.linspace(0, 2*np.pi, 10000)
     # plot_Vak_with_t_simplified(x, alpha1, beta, Vm, E, v_drop)
-    time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
-    # plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
-    # plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak=ileak, tr=tr, tf=tf, freq=freq)
+    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
+    plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
+    plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr=tr, tf=tf, freq=freq)
     # plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha1, beta)
-    # plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    # print(compute_i_t_including_leakage_rms(alpha1, beta, Vm, E, esr, ileak, tr, tf, freq))
+    plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+    # print(compute_i_t_including_leakage_rms(alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq))
