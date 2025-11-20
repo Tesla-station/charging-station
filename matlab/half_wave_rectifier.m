@@ -178,7 +178,7 @@ function v = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
 
     % Note: your last python version used (Vs - E - v_drop) as natural_v.
     % We'll replicate that to stay faithful:
-    natural_v = vs_t(x, Vm) - E - v_drop;
+    natural_v = vs_t(x, Vm) - E;
 
     % Region 1: before alpha -> natural waveform
     if x < alpha
