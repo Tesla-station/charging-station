@@ -83,9 +83,9 @@ def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, fre
 
     natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
 
-    # Region 1: before α (Ileak)
+    # Region 1: before α (-Ileak) the leakage current is always negative due to the pyhisics of the PN junction
     if x < alpha:
-        return ileak
+        return -ileak
 
     # Region 2: α → α + d_theta_r (rising current to natural I)
     if alpha <= x < alpha + d_theta_r:
