@@ -89,7 +89,7 @@ def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, fre
 
     # Region 2: α → α + d_theta_r (rising current to natural I)
     if alpha <= x < alpha + d_theta_r:
-        m, b = line_from_points(alpha, ileak, alpha + d_theta_r, i_t(alpha + d_theta_r, alpha, beta, Vm, E, esr))
+        m, b = line_from_points(alpha, -ileak, alpha + d_theta_r, i_t_including_leakage_simplified(alpha + d_theta_r, alpha, beta, Vm, E, esr, ileak, v_drop))
         return m*x + b  # RISE: ileak → natural
 
     # Region 3: The natural current region
@@ -98,7 +98,7 @@ def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, fre
 
     # Region 4: β → β + theta_f (falling current back to ileak)
     if beta <= x < beta + d_theta_f:
-        m, b = line_from_points(beta, i_t(beta, alpha, beta, Vm, E, esr), beta + d_theta_f, -ileak)
+        m, b = line_from_points(beta, i_t_including_leakage_simplified(beta, alpha, beta, Vm, E, esr, ileak, v_drop), beta + d_theta_f, -ileak)
         return m*x + b # FALL: natural → -ileak
 
     # Region 5: after β + theta_f (-Ileak)
