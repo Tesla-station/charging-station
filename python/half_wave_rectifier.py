@@ -73,7 +73,7 @@ def i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop):
     if alpha <= x <= beta:
         return (Vm*np.sin(x) - E - v_drop)/esr
     else:
-        return ileak  # for 2pi-(beta-alpha)
+        return -ileak  # for 2pi-(beta-alpha)
 
 def i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     # Convert rise/fall times to angular ranges
