@@ -79,10 +79,7 @@ def i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop):
     else:
         return -ileak  # for 2pi-(beta-alpha)
 
-def i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop):
-    pass
-
-def i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+def i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     # Convert rise/fall times to angular ranges
     omega = 2*np.pi*freq
     d_theta_r = omega * tr   # rise-time converted to angle
@@ -129,6 +126,34 @@ def i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, t
     # Region 9: after β + theta_f (-Ileak)
     return -ileak
 
+def i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq): # this is implemented for thristor 1
+    # Convert rise/fall times to angular ranges
+    omega = 2*np.pi*freq
+    d_theta_r = omega * tr   # rise-time converted to angle
+    d_theta_f = omega * tf   # fall-time converted to angle
+
+    natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
+
+    # Region 1: before α (-Ileak) the leakage current is always negative due to the pyhisics of the PN junction
+    if x < alpha:
+        return -ileak
+
+    # Region 2: α → α + d_theta_r (rising current to natural I)
+    if alpha <= x < alpha + d_theta_r:
+        m, b = line_from_points(alpha, -ileak, alpha + d_theta_r, i_t_including_leakage_simplified(alpha + d_theta_r, alpha, beta, Vm, E, esr, ileak, v_drop))
+        return m*x + b  # RISE: ileak → natural
+
+    # Region 3: The natural current region
+    if alpha + d_theta_r <= x < beta:
+        return natural_I
+
+    # Region 4: β → β + theta_f (falling current back to ileak)
+    if beta <= x < beta + d_theta_f:
+        m, b = line_from_points(beta, i_t_including_leakage_simplified(beta, alpha, beta, Vm, E, esr, ileak, v_drop), beta + d_theta_f, -ileak)
+        return m*x + b # FALL: natural → -ileak
+
+    # Region 5: after β + theta_f (-Ileak)
+    return -ileak
 
 def Vak_including_drop_simplified(x, alpha, beta, Vm, E, v_drop):
     if alpha <= x <= beta:
@@ -152,17 +177,15 @@ def line_from_points(x1, y1, x2, y2):
     b = y1 - m * x1
     return m, b
 
-def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
+def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq): # this is implemented for thyristor 1
     # Convert rise/fall times to angular ranges
     omega = 2*np.pi*freq
     d_theta_r = omega * tr   # rise-time converted to angle 
     d_theta_f = omega * tf   # fall-time converted to angle 
 
-    natural_v = vs_t(x, Vm) - E
-
     # Region 1: before α (natural waveform)
     if x < alpha:
-        return natural_v
+        return vs_t(x, Vm)-E
 
     # Region 2: α → α + d_theta_f (falling voltage to v_drop)
     if alpha <= x < alpha + d_theta_f:
@@ -179,7 +202,25 @@ def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
         return m*x + b # RISE: v_drop → natural
 
     # Region 5: after β + theta_r (natural waveform)
-    return natural_v
+    if beta + d_theta_r <= x < np.pi + alpha:
+        return vs_t(x, Vm)-E
+    
+    # Region 6: π + α → π + α + d_theta_f (falling voltage to v_drop)
+    if np.pi + alpha <= x < np.pi + alpha + d_theta_f:  
+        m, b = line_from_points(np.pi + alpha, vs_t(np.pi + alpha, Vm)-E, np.pi + alpha + d_theta_f, 2*vs_t(np.pi + alpha + d_theta_f, Vm) + v_drop)
+        return m*x + b  # FALL: natural → 2*vs_t + v_drop
+    
+    # Region 7: 2*vs_t + v_drop
+    if np.pi + alpha + d_theta_f <= x < np.pi + beta:
+        return 2*vs_t(x, Vm) + v_drop
+    
+    # Region 8: π + β → π + β + theta_r (rising voltage back to natural)
+    if np.pi + beta <= x < np.pi + beta + d_theta_r:
+        m, b = line_from_points(np.pi + beta, 2*vs_t(np.pi + beta, Vm) + v_drop, np.pi + beta + d_theta_r, vs_t(np.pi + beta + d_theta_r, Vm)-E)
+        return m*x + b # RISE: 2*vs_t + v_drop → natural
+    
+    # Region 9: after β + theta_r (natural waveform)
+    return vs_t(x, Vm)-E
 
 
 def plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
@@ -216,16 +257,17 @@ def compute_Iavg(Vm, E, esr, alpha, beta) -> float:
     return Iavg
 
 def compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
-    integral, _ = quad(lambda x: i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)**2, 0, 2.0 * np.pi, limit=1000)
+    integral, _ = quad(lambda x: i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)**2, 0, 2.0 * np.pi, limit=1000)
     return np.sqrt(integral / (2.0 * np.pi))
 
-def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms):
-    Vak = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
-    i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    return Vak * i + esr * i**2
+def compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+    Vak_thyrestor_1 = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
+    i_thyristor_1 = i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+    resistance_loss = esr * i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)**2
+    return 2*(Vak_thyrestor_1 * i_thyristor_1) + resistance_loss
 
-def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms):
-    power_loss_func = lambda x: compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms)
+def compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+    power_loss_func = lambda x: compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     result, _ = quad(power_loss_func, 0, 2*np.pi, limit=1000)
     P_loss_avg = (1.0 / (2.0 * np.pi)) * result
     return P_loss_avg
@@ -234,7 +276,7 @@ def plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr,
     y = []
     for alpha in alpha_array:
         Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-        P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq, Irms)
+        P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
         y.append(P_loss_avg)
     plt.plot(alpha_array, y)
     plt.xlabel("Firing Angle (rad)")
@@ -243,8 +285,8 @@ def plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr,
     plt.grid(True)
     plt.show()
 
-def plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha, beta):
-    y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, tr, tf, freq) for xi in x]
+def plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha, beta):
+    y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
     plt.xlabel("Angle (rad)")
     plt.ylabel("Power Loss (W)")
@@ -335,11 +377,10 @@ if __name__ == "__main__":
     alpha1, beta = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm) # get alpha1 and beta considering v_drop
     alphas = _make_alpha_array(alpha1, beta, step=0.01)
     x = np.linspace(0, 2*np.pi, 10000)
-    # plot_Vak_with_t_simplified(x, alpha1, beta, Vm, E, v_drop)
-    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
+    plot_Vak_with_t_simplified(x, alpha1, beta, Vm, E, v_drop)
+    time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
     plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    # plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
-    # plot_i_without_leakage(x, alpha1, beta,220, 6, 10)
-    # plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha1, beta)
-    # plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    # print(compute_i_t_including_leakage_rms(alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq))
+    plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
+    plot_i_without_leakage(x, alpha1, beta,220, 6, 10)
+    plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha1, beta)
+    plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
