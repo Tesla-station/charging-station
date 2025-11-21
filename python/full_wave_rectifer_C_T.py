@@ -381,6 +381,6 @@ if __name__ == "__main__":
     time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
     plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
-    plot_i_without_leakage(x, alpha1, beta,220, 6, 10)
+    plot_i_without_leakage(x, alpha1, beta, Vm, E, esr)
     plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha1, beta)
     plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
