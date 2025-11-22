@@ -63,7 +63,7 @@ def _make_alpha_array(a1: float, a2: float, step: float = 0.01) -> np.ndarray:
 def vs_t(x, Vm):
     return Vm*np.sin(x)
 
-def i_t(x, alpha, beta, Vm, E, esr):
+def i_t(x, alpha, beta, Vm, E, esr): # the current without considering leakage and voltage drop that is going to the battery
     if alpha <= x <= beta:
         return (Vm*np.sin(x)-E)/esr
     if np.pi + alpha <= x <= np.pi + beta:
@@ -166,7 +166,7 @@ def plot_Vak_with_t_simplified(x, alpha, beta, Vm, E, v_drop):
     plt.plot(x, y)
     plt.xlabel("Angle (rad)")
     plt.ylabel("Vak (V)")
-    plt.title("Voltage across the load Vak vs Angle")
+    plt.title("Vak including drop simplified vs Angle (ωt)")
     plt.grid(True)
     plt.show()
 
@@ -226,27 +226,27 @@ def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq): # this is i
 def plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
     y = [Vak_including_drop(xi, alpha, beta, Vm, E, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
-    plt.xlabel("Angle (rad)")
+    plt.xlabel("Angle (ωt) rad")
     plt.ylabel("Vak (V)")
-    plt.title("Voltage across the load Vak vs Angle")
+    plt.title("Vak including loss vs Angle (ωt)")
     plt.grid(True)  
     plt.show()
 
 def plot_i_without_leakage(x, alpha, beta, Vm, E, esr):
     y = [i_t(xi, alpha, beta, Vm, E, esr) for xi in x]
     plt.plot(x, y)
-    plt.xlabel("Angle (rad)")
+    plt.xlabel("Angle (ωt) rad")
     plt.ylabel("Current i (A)")
-    plt.title("Current i vs Angle")
+    plt.title("Current i without loss vs Angle (ωt)")
     plt.grid(True)
     plt.show()
 
 def plot_i_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     y = [i_thyristor_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
-    plt.xlabel("Angle (rad)")
+    plt.xlabel("Angle (ωt) rad")
     plt.ylabel("Current i (A)")
-    plt.title("Current i vs Angle")
+    plt.title("Current i thyristor including leakage vs Angle (ωt)")
     plt.grid(True)
     plt.show()
 
@@ -288,9 +288,9 @@ def plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr,
 def plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha, beta):
     y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
-    plt.xlabel("Angle (rad)")
+    plt.xlabel("Angle (ωt) rad")
     plt.ylabel("Power Loss (W)")
-    plt.title("Power Loss vs Angle")
+    plt.title("Power Loss vs Angle (ωt)")
     plt.grid(True)
     plt.show()
 
@@ -372,15 +372,13 @@ if __name__ == "__main__":
     tr = 10*10**(-6)  # rise time in seconds
     tf = 5*10**(-6)  # fall time in seconds
     freq = 50  # frequency in Hz
-    ileak = 0.2  # leakage current in Amperes
+    ileak = 0.02  # leakage current in Amperes
     Vm = np.sqrt(2)*Vrms
     alpha1, beta = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm) # get alpha1 and beta considering v_drop
     alphas = _make_alpha_array(alpha1, beta, step=0.01)
     x = np.linspace(0, 2*np.pi, 10000)
-    plot_Vak_with_t_simplified(x, alpha1, beta, Vm, E, v_drop)
-    time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
+    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
     plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
-    plot_i_without_leakage(x, alpha1, beta, Vm, E, esr)
     plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha1, beta)
     plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
