@@ -26,18 +26,17 @@ def find_range_of_alphas_and_beta(E: float, Vm: float):
 def find_range_of_alphas_and_beta_with_v_drop(E: float, v_drop, Vm: float):
     """
     Return two angles (alpha1, alpha2) in radians in [0, 2*pi)
-    that satisfy sin(theta) = E/Vm. Raises ValueError if |E/Vm|>1.
+    that satisfy sin(theta) = (E+v_drop)/Vm. Raises ValueError if |(E+v_drop)/Vm|>1.
     The two solutions are arcsin(frac) and pi - arcsin(frac),
     normalized into [0, 2*pi).
     """
     frac = (E + v_drop) / Vm
     if abs(frac) > 1.0:
-        raise ValueError(f"|E/Vm| must be <= 1. Got {frac}")
+        raise ValueError(f"|E+v_drop|/Vm must be <= 1. Got {frac}")
     a = np.arcsin(frac)
     t1 = _norm_angle(a)
     t2 = _norm_angle(np.pi - a)
     return t1, t2
-
 
 def _make_alpha_array(a1: float, a2: float, step: float = 0.01) -> np.ndarray:
     """Create a numpy array of angles from a1 to a2 (exclusive) with step.
@@ -87,7 +86,7 @@ def i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr,
 
     natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
 
-    # Region 1: before α (-Ileak) the leakage current is always negative due to the pyhisics of the PN junction
+    # Region 1: before α (-Ileak) the leakage current is always negative due to the physics of the PN junction
     if x < alpha:
         return -ileak
 
@@ -126,7 +125,7 @@ def i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr,
     # Region 9: after β + theta_f (-Ileak)
     return -ileak
 
-def i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq): # this is implemented for thristor 1
+def i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq): # this is implemented for thyristor 1
     # Convert rise/fall times to angular ranges
     omega = 2*np.pi*freq
     d_theta_r = omega * tr   # rise-time converted to angle
@@ -134,7 +133,7 @@ def i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, t
 
     natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
 
-    # Region 1: before α (-Ileak) the leakage current is always negative due to the pyhisics of the PN junction
+    # Region 1: before α (-Ileak) the leakage current is always negative due to the physics of the PN junction
     if x < alpha:
         return -ileak
 
@@ -222,7 +221,6 @@ def Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq): # this is i
     # Region 9: after β + theta_r (natural waveform)
     return vs_t(x, Vm)-E
 
-
 def plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, tr, tf, freq):
     y = [Vak_including_drop(xi, alpha, beta, Vm, E, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
@@ -241,7 +239,7 @@ def plot_i_without_leakage(x, alpha, beta, Vm, E, esr):
     plt.grid(True)
     plt.show()
 
-def plot_i_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
+def plot_i_thyristor_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     y = [i_thyristor_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
     plt.xlabel("Angle (ωt) rad")
@@ -294,32 +292,24 @@ def plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha, be
     plt.grid(True)
     plt.show()
 
-
-def time_of_charging(Vrms, E, esr, C, step: float = 0.01, degrees: bool = True, show: bool = True,
-                     charging_time_scale: str = 'linear', initial_soc: float = 0.0, required_charging_time: float = 0.0):
-    Vm = np.sqrt(2.0) * Vrms
-    alpha1, beta = find_range_of_alphas_and_beta(E, Vm)
-    alphas = _make_alpha_array(alpha1, beta, step=step)
-    
-    # here we compute Iavg for each alpha
-    Iavg = []
-    for alpha in alphas:
-        Iavg.append(compute_Iavg(Vm, E, esr, alpha, beta))
-    Iavg = np.array(Iavg)
-
-    # Compute charging time with respect to alphas (C / Iavg) when capacity C provided.
-    # Only valid when Iavg > 0. Mask non-positive currents to NaN so they are not plotted.
-    charging_time = C/Iavg
+def compute_charging_time(Iavg, C):
+    """
+    Compute charging time (in hours) from battery capacity (Ah) and Iavg (A).
+    Returns an array with NaN where Iavg <= 0.
+    """
+    charging_time = np.full_like(Iavg, np.nan, dtype=float)
+    positive = Iavg > 0
     if C is not None:
-        # Broadcast: C scalar divided by Iavg array
-        charging_time = np.full_like(Iavg, np.nan, dtype=float)
-        positive = Iavg > 0
         charging_time[positive] = C / Iavg[positive]
+    return charging_time
 
-    # Plot
+def plot_time_of_charging(alphas, Vm, E, esr, C, degrees=True, charging_time_scale='linear'):
+    """
+    Plot Iavg (left axis) and charging_time (right axis).
+    """
     x = np.degrees(alphas) if degrees else alphas
     xlabel = "Firing angle (deg)" if degrees else "Firing angle (rad)"
-    # Larger figure size so small numbers are visible
+    Iavg, charging_time = time_of_charging(Vm, E, esr, C, alphas, step=0.01)
     fig, ax1 = plt.subplots(figsize=(14, 8))
     ax1.plot(x, Iavg, '-o', markersize=4, label='Iavg (A)', color='tab:blue')
     ax1.set_xlabel(xlabel, fontsize=12)
@@ -327,41 +317,63 @@ def time_of_charging(Vrms, E, esr, C, step: float = 0.01, degrees: bool = True, 
     ax1.tick_params(axis='y', labelcolor='tab:blue', labelsize=11)
     ax1.tick_params(axis='x', labelsize=11)
     ax1.grid(True, which='both', axis='both', linestyle='--', alpha=0.4)
+
     if charging_time is not None:
         ax2 = ax1.twinx()
-        ax2.plot(x, charging_time, '-s', markersize=4, label='Charging time (s)', color='tab:orange')
-        ylabel = 'Charging time (s)'
+        ax2.plot(x, charging_time, '-s', markersize=4, label='Charging time (h)', color='tab:orange')
+        ylabel = 'Charging time (h)'
         if charging_time_scale and charging_time_scale != 'linear':
             ylabel += f' ({charging_time_scale})'
             ax2.set_yscale(charging_time_scale)
         ax2.set_ylabel(ylabel, color='tab:orange', fontsize=12)
         ax2.tick_params(axis='y', labelcolor='tab:orange', labelsize=11)
-        # Auto-scale y-axis to fit all data with small padding
         ax2.margins(y=0.1)
+
     plt.title(f'Iavg and charging time vs firing angle (Vrms={Vrms} V, E={E} V, esr={esr} ohms, C={C} Ah)', fontsize=13, fontweight='bold')
     fig.tight_layout()
+    plt.show()
 
-    if required_charging_time > 0.0 and initial_soc > 0.0:
-        new_soc = (Iavg * required_charging_time  + (initial_soc/100.0)*C) / C
-        new_soc = new_soc * 100.0  # convert to percentage
-        new_soc = np.clip(new_soc, 0.0, 100.0)   # clip to 100%
+def compute_final_soc(Iavg, initial_soc, C, required_charging_time):
+    """
+    Compute final state of charge after applying required_charging_time (hours).
+    initial_soc is in percent (0-100). C in Ah. Iavg in A.
+    Returns an array with final SOC in percent (0-100), clipped to [0, 100].
+    """
+    new_soc = (Iavg * required_charging_time  + (initial_soc/100.0)*C) / C
+    new_soc = new_soc * 100.0  # percent
+    new_soc = np.clip(new_soc, 0.0, 100.0)
+    return new_soc
 
-        # Create second plot for final state of charge
-        fig2, ax3 = plt.subplots(figsize=(14, 6))
-        ax3.plot(x, new_soc, '-o', markersize=4, color='tab:green')
-        ax3.set_xlabel(xlabel, fontsize=12)
-        ax3.set_ylabel("Final State of Charge (%)", fontsize=12, color='tab:green')
-        ax3.tick_params(axis='y', labelcolor='tab:green', labelsize=11)
-        ax3.tick_params(axis='x', labelsize=11)
-        ax3.grid(True, linestyle='--', alpha=0.4)
-        plt.title(f"Final SOC vs Firing Angle\nInit SOC={initial_soc}%, Time={required_charging_time}h, C={C}Ah",fontsize=13,fontweight='bold')
+def plot_final_soc(alphas, Vm, E, esr, initial_soc, C, required_charging_time, degrees=True):
+    """
+    Plot final state of charge after applying required_charging_time (hours).
+    initial_soc is in percent (0-100). C in Ah. Iavg in A.
+    """
+    x = np.degrees(alphas) if degrees else alphas
+    xlabel = "Firing angle (deg)" if degrees else "Firing angle (rad)"
+    
+    Iavg, charging_time = time_of_charging(Vm, E, esr, C, alphas, step=0.01)
 
-        fig2.tight_layout()
+    new_soc = compute_final_soc(Iavg, initial_soc, C, required_charging_time)
 
-    if show:
-        plt.show()
+    plt.plot(x, new_soc, '-o', markersize=4, color='tab:green')
+    plt.xlabel(xlabel, fontsize=12)
+    plt.ylabel("Final State of Charge (%)", fontsize=12, color='tab:green')
+    plt.tick_params(axis='y', labelcolor='tab:green', labelsize=11)
+    plt.tick_params(axis='x', labelsize=11)
+    plt.grid(True, linestyle='--', alpha=0.4)
+    plt.title(f"Final SOC vs Firing Angle\nInit SOC={initial_soc}%, Time={required_charging_time}h, C={C}Ah",fontsize=13,fontweight='bold')
+    plt.tight_layout()
+    plt.show()
 
-    return alphas, Iavg, charging_time    
+def time_of_charging(Vm, E, esr, C, alphas, step: float = 0.01):
+    Iavg = []
+    for alpha in alphas:
+        Iavg.append(compute_Iavg(Vm, E, esr, alpha, beta))
+    Iavg = np.array(Iavg)
+    charging_time = compute_charging_time(Iavg, C)
+
+    return Iavg, charging_time
 
 if __name__ == "__main__":
     Vrms = 60
@@ -377,8 +389,10 @@ if __name__ == "__main__":
     alpha1, beta = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm) # get alpha1 and beta considering v_drop
     alphas = _make_alpha_array(alpha1, beta, step=0.01)
     x = np.linspace(0, 2*np.pi, 10000)
-    # time_of_charging(Vrms, E, esr, capacity, step=0.01, charging_time_scale='log', initial_soc=30.0, required_charging_time=0.5)
-    plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+
+    plot_time_of_charging(alphas, Vm, E, esr, capacity, degrees=True, charging_time_scale='log')
+    plot_final_soc(alphas, Vm, E, esr, initial_soc=30.0, C=capacity, required_charging_time=0.5, degrees=True)
+    plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
     plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha1, beta)
     plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
