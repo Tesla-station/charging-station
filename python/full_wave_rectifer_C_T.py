@@ -64,17 +64,17 @@ def vs_t(x, Vm):
 
 def i_t(x, alpha, beta, Vm, E, esr): # the current without considering leakage and voltage drop that is going to the battery
     if alpha <= x <= beta:
-        return (Vm*np.sin(x)-E)/esr
+        return (vs_t(x, Vm)-E)/esr
     if np.pi + alpha <= x <= np.pi + beta:
-        return (-Vm*np.sin(x)-E)/esr
+        return (-vs_t(x, Vm)-E)/esr
     else:
         return 0.0  # for 2pi-(beta-alpha)
     
 def i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop):
     if alpha <= x <= beta:
-        return (Vm*np.sin(x) - E - v_drop)/esr
+        return (vs_t(x, Vm) - E - v_drop)/esr
     if np.pi + alpha <= x <= np.pi + beta:
-        return (-Vm*np.sin(x) - v_drop - E)/esr
+        return (-vs_t(x, Vm) - v_drop - E)/esr
     else:
         return -ileak  # for 2pi-(beta-alpha)
 
@@ -158,12 +158,12 @@ def Vak_including_drop_simplified(x, alpha, beta, Vm, E, v_drop):
     if alpha <= x <= beta:
         return v_drop
     else:
-        return Vm*np.sin(x)-E  # for 2pi-(beta-alpha)
+        return vs_t(x, Vm)-E  # for 2pi-(beta-alpha)
 
 def plot_Vak_with_t_simplified(x, alpha, beta, Vm, E, v_drop):
     y = [Vak_including_drop_simplified(xi, alpha, beta, Vm, E, v_drop) for xi in x]
     plt.plot(x, y)
-    plt.xlabel("Angle (rad)")
+    plt.xlabel("Angle (ωt) rad")
     plt.ylabel("Vak (V)")
     plt.title("Vak including drop simplified vs Angle (ωt)")
     plt.grid(True)
@@ -283,7 +283,7 @@ def plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr,
     plt.grid(True)
     plt.show()
 
-def plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha, beta):
+def plot_power_loss_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq):
     y = [compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq) for xi in x]
     plt.plot(x, y)
     plt.xlabel("Angle (ωt) rad")
@@ -309,7 +309,7 @@ def plot_time_of_charging(alphas, Vm, E, esr, C, degrees=True, charging_time_sca
     """
     x = np.degrees(alphas) if degrees else alphas
     xlabel = "Firing angle (deg)" if degrees else "Firing angle (rad)"
-    Iavg, charging_time = time_of_charging(Vm, E, esr, C, alphas, step=0.01)
+    Iavg, charging_time = time_of_charging(Vm, E, esr, C, alphas)
     fig, ax1 = plt.subplots(figsize=(14, 8))
     ax1.plot(x, Iavg, '-o', markersize=4, label='Iavg (A)', color='tab:blue')
     ax1.set_xlabel(xlabel, fontsize=12)
@@ -352,7 +352,7 @@ def plot_final_soc(alphas, Vm, E, esr, initial_soc, C, required_charging_time, d
     x = np.degrees(alphas) if degrees else alphas
     xlabel = "Firing angle (deg)" if degrees else "Firing angle (rad)"
     
-    Iavg, charging_time = time_of_charging(Vm, E, esr, C, alphas, step=0.01)
+    Iavg, charging_time = time_of_charging(Vm, E, esr, C, alphas)
 
     new_soc = compute_final_soc(Iavg, initial_soc, C, required_charging_time)
 
@@ -366,7 +366,7 @@ def plot_final_soc(alphas, Vm, E, esr, initial_soc, C, required_charging_time, d
     plt.tight_layout()
     plt.show()
 
-def time_of_charging(Vm, E, esr, C, alphas, step: float = 0.01):
+def time_of_charging(Vm, E, esr, C, alphas):
     Iavg = []
     for alpha in alphas:
         Iavg.append(compute_Iavg(Vm, E, esr, alpha, beta))
@@ -394,5 +394,5 @@ if __name__ == "__main__":
     plot_final_soc(alphas, Vm, E, esr, initial_soc=30.0, C=capacity, required_charging_time=0.5, degrees=True)
     plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq)
-    plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha1, beta)
+    plot_power_loss_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
