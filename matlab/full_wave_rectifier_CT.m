@@ -422,7 +422,7 @@ grid on;
 title(sprintf('Final SOC vs Firing Angle\nInit SOC=%g%%, Time=%gh, C=%gAh', initial_soc, required_charging_time, C), 'Interpreter','none');
 end
 
-function [Iavg_array, charging_time] = time_of_charging(Vm, E, esr, C, alphas, beta, step)
+function [Iavg_array, charging_time] = time_of_charging(Vm, E, esr, C, alphas, beta, ~)
 % Compute Iavg for each alpha in alphas
 Iavg_array = zeros(size(alphas));
 for k = 1:numel(alphas)

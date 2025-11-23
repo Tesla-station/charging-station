@@ -1,46 +1,38 @@
-function half_wave_rectifier()
-    % HALF_WAVE_RECTIFIER_V2 MATLAB port of your Python script
-    % Save this as half_wave_rectifier_v2.m and run `main`
-    %
-    % Author: converted from user's Python script
+% thyristor_model.m
+% Converted from the provided Python script to one MATLAB script file.
+% Run this file to reproduce the same analysis/plots.
 
-    % === USER PARAMETERS ===
+function half_wave_rectifier()
+    % Main section (equivalent to if __name__ == "__main__": in Python)
     Vrms = 60;
     E = 12;
     esr = 4.256;
-    capacity = 100;
+    capacity = 100;       % Ah
     v_drop = 1.2;
-    tr = 10e-6;        % rise time (s)
-    tf = 5e-6;         % fall time (s)
-    freq = 50;         % Hz
-    ileak = 0.02;      % leakage current (A)
-
+    tr = 10e-6;           % rise time (s)
+    tf = 5e-6;            % fall time (s)
+    freq = 50;            % Hz
+    ileak = 0.02;         % A
     Vm = sqrt(2) * Vrms;
-
-    % compute alpha/beta using v_drop aware function
+    
     [alpha1, beta] = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm);
-
     alphas = make_alpha_array(alpha1, beta, 0.01);
-
     x = linspace(0, 2*pi, 10000);
-
-    % plots & calculations (uncomment what you want)
+    
+    % Plots & calculations
+    plot_time_of_charging(alphas, beta, Vm, E, esr, capacity, true, 'log');
+    plot_final_soc(alphas, beta, Vm, E, esr, 30.0, capacity, 0.5, true);
+    plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
     plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq);
-    plot_i_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
+    plot_power_loss_with_t(alpha1, beta, x, Vm, E, esr, ileak, v_drop, tr, tf, freq);
     plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
-
-    % example: compute Iavg array
-    %[alphas_out, Iavg, Tchg] = time_of_charging(Vrms, E, esr, capacity, 0.01, true, true, 'linear', 0, 0.0);
-
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Utility / basic helpers
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% --- Utility functions ---------------------------------------------------
 
-function t = norm_angle(theta)
+function out = norm_angle(theta)
     % Normalize angle to [0, 2*pi)
-    t = mod(theta, 2*pi);
+    out = mod(theta, 2*pi);
 end
 
 function [t1, t2] = find_range_of_alphas_and_beta(E, Vm)
@@ -54,10 +46,9 @@ function [t1, t2] = find_range_of_alphas_and_beta(E, Vm)
 end
 
 function [t1, t2] = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm)
-    % uses E + v_drop in numerator as in your python version
     frac = (E + v_drop) / Vm;
     if abs(frac) > 1
-        error('|(E+v_drop)/Vm| must be <= 1. Got %g', frac);
+        error('|E/Vm| must be <= 1. Got %g', frac);
     end
     a = asin(frac);
     t1 = norm_angle(a);
@@ -65,291 +56,295 @@ function [t1, t2] = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm)
 end
 
 function arr = make_alpha_array(a1, a2, step)
+    % Create array from a1 to a2 (exclusive) with step, handling wrap-around
+    if nargin < 3
+        step = 0.01;
+    end
     if step <= 0
         error('step must be positive');
     end
-    if abs(a1 - a2) < 1e-12
+    if abs(a1 - a2) < eps
         arr = a1;
         return;
     end
     two_pi = 2*pi;
     if a1 < a2
+        % mimic numpy.arange(a1, a2, step)
         arr = a1:step:(a2-step);
-    else
-        part1 = a1:step:(two_pi-step);
-        part2 = 0:step:(a2-step);
+        if isempty(arr)
+            arr = a1; % fallback minimal array
+        end
+        return;
+    end
+    % wrap-around
+    part1 = a1:step:(two_pi-step);
+    part2 = 0:step:(a2-step);
+    if ~isempty(part1) && ~isempty(part2)
         arr = [part1, part2];
-    end
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Basic waveforms
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function v = vs_t(x, Vm)
-    v = Vm .* sin(x);
-end
-
-function I = i_t(x, alpha, beta, Vm, E, esr)
-    if (x >= alpha) && (x <= beta)
-        I = (Vm * sin(x) - E) / esr;
+    elseif ~isempty(part1)
+        arr = part1;
     else
-        I = 0.0;
+        arr = part2;
     end
 end
 
-function I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
-    % Here python used Vm*sin - E - v_drop in simplified version
-    if (x >= alpha) && (x <= beta)
-        I = (Vm * sin(x) - E - v_drop) / esr;
+function y = vs_t(x, Vm)
+    y = Vm .* sin(x);
+end
+
+function i = i_t(x, alpha, beta, Vm, E, esr)
+    % scalar-style function (use arrayfun for vector inputs)
+    if (alpha <= x) && (x <= beta)
+        i = (vs_t(x, Vm) - E) / esr;
     else
-        I = ileak;
+        i = 0.0;
     end
 end
 
-function p = line_from_points(x1, y1, x2, y2)
-    m = (y2 - y1) / (x2 - x1);
-    b = y1 - m * x1;
-    p = [m, b];
+function i = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop)
+    if (alpha <= x) && (x <= beta)
+        i = (vs_t(x, Vm) - E - v_drop) / esr;
+    else
+        i = -ileak;
+    end
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% i(t) piecewise with leakage and switching slopes
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function Iout = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    % Convert rise/fall times into angular widths
+function i = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+    % Scalar x expected. For vector x, call with arrayfun.
     omega = 2*pi*freq;
-    d_theta_r = omega * tr;   % angle width for rise (after alpha)
-    d_theta_f = omega * tf;   % angle width for fall (after beta)
-
-    % natural conduction expression (mirrors simplified version)
-    natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop);
-
-    % Region 1: before alpha -> leakage
+    d_theta_r = omega * tr;
+    d_theta_f = omega * tf;
+    
+    naturalI = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop);
+    
     if x < alpha
-        Iout = ileak;
+        i = -ileak;
         return;
     end
-
-    % Region 2: alpha -> alpha + d_theta_r : ramp from ileak to conduction
-    if (x >= alpha) && (x < alpha + d_theta_r)
-        target_angle = min(alpha + d_theta_r, beta); % avoid exceeding beta
-        target_I = i_t_including_leakage_simplified(target_angle, alpha, beta, Vm, E, esr, ileak, v_drop);
-        p = line_from_points(alpha, ileak, alpha + d_theta_r, target_I);
-        Iout = p(1)*x + p(2);
+    if (alpha <= x) && (x < alpha + d_theta_r)
+        [m,b] = line_from_points(alpha, -ileak, alpha + d_theta_r, i_t_including_leakage_simplified(alpha + d_theta_r, alpha, beta, Vm, E, esr, ileak, v_drop));
+        i = m*x + b;
         return;
     end
-
-    % Region 3: conduction (natural current)
-    if (x >= alpha + d_theta_r) && (x < beta)
-        Iout = natural_I;
+    if (alpha + d_theta_r <= x) && (x < beta)
+        i = naturalI;
         return;
     end
-
-    % Region 4: beta -> beta + d_theta_f : ramp from conduction back to leakage
-    if (x >= beta) && (x < beta + d_theta_f)
-        start_I = i_t_including_leakage_simplified(beta, alpha, beta, Vm, E, esr, ileak, v_drop);
-        p = line_from_points(beta, start_I, beta + d_theta_f, ileak);
-        Iout = p(1)*x + p(2);
+    if (beta <= x) && (x < beta + d_theta_f)
+        [m,b] = line_from_points(beta, i_t_including_leakage_simplified(beta, alpha, beta, Vm, E, esr, ileak, v_drop), beta + d_theta_f, -ileak);
+        i = m*x + b;
         return;
     end
-
-    % Region 5: after beta + d_theta_f -> leakage
-    Iout = ileak;
+    i = -ileak;
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% V_AK piecewise with switching slopes
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function v = Vak_including_drop_simplified(x, alpha, beta, Vm, E, v_drop)
-    if (x >= alpha) && (x <= beta)
+    if (alpha <= x) && (x <= beta)
         v = v_drop;
     else
         v = Vm * sin(x) - E;
     end
 end
 
+function plot_Vak_with_t_simplified(x, alpha, beta, Vm, E, v_drop)
+    y = arrayfun(@(xi) Vak_including_drop_simplified(xi, alpha, beta, Vm, E, v_drop), x);
+    plot(x, y);
+    xlabel('Angle (ωt) rad');
+    ylabel('Vak (V)');
+    title('Voltage across the load Vak vs Angle (ωt) rad');
+    grid on;
+    figure;
+end
+
+function [m, b] = line_from_points(x1, y1, x2, y2)
+    m = (y2 - y1) / (x2 - x1);
+    b = y1 - m * x1;
+end
+
 function v = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
     omega = 2*pi*freq;
-    d_theta_r = omega * tr;   % angle for rise (after beta)
-    d_theta_f = omega * tf;   % angle for fall (after alpha)
-
-    % Note: your last python version used (Vs - E - v_drop) as natural_v.
-    % We'll replicate that to stay faithful:
+    d_theta_r = omega * tr;
+    d_theta_f = omega * tf;
     natural_v = vs_t(x, Vm) - E;
-
-    % Region 1: before alpha -> natural waveform
+    
     if x < alpha
         v = natural_v;
         return;
     end
-
-    % Region 2: alpha -> alpha + d_theta_f : linear fall to v_drop
-    if (x >= alpha) && (x < alpha + d_theta_f)
-        v_start = vs_t(alpha, Vm) - E;
-        p = line_from_points(alpha, v_start, alpha + d_theta_f, v_drop);
-        v = p(1)*x + p(2);
+    if (alpha <= x) && (x < alpha + d_theta_f)
+        [m,b] = line_from_points(alpha, vs_t(alpha, Vm)-E, alpha + d_theta_f, v_drop);
+        v = m*x + b;
         return;
     end
-
-    % Region 3: alpha + d_theta_f <= x < beta : constant v_drop
-    if (x >= alpha + d_theta_f) && (x < beta)
+    if (alpha + d_theta_f <= x) && (x < beta)
         v = v_drop;
         return;
     end
-
-    % Region 4: beta -> beta + d_theta_r : linear rise back to natural
-    if (x >= beta) && (x < beta + d_theta_r)
-        v_end = vs_t(beta + d_theta_r, Vm) - E;
-        p = line_from_points(beta, v_drop, beta + d_theta_r, v_end);
-        v = p(1)*x + p(2);
-        return;
+    if (beta <= x) && (x < beta + d_theta_r)
+        [m,b] = line_from_points(beta, v_drop, beta + d_theta_r, vs_t(beta + d_theta_r, Vm)-E);
+        v = m*x + b;
+        return; 
     end
-
-    % Region 5: after beta + d_theta_r -> natural waveform
     v = natural_v;
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Plot functions
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function plot_Vak_with_t_simplified(x, alpha, beta, Vm, E, v_drop)
-    y = arrayfun(@(xi) Vak_including_drop_simplified(xi, alpha, beta, Vm, E, v_drop), x);
-    plot(x, y, 'LineWidth', 1.4);
-    xlabel('Angle (rad)'), ylabel('Vak (V)');
-    title('Vak simplified');
-    grid on;
 end
 
 function plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
     y = arrayfun(@(xi) Vak_including_drop(xi, alpha, beta, Vm, E, v_drop, tr, tf, freq), x);
-    plot(x, y, 'LineWidth', 1.4);
-    xlabel('Angle (rad)'), ylabel('Vak (V)');
-    title('Vak with switching slopes');
+    plot(x, y);
+    xlabel('Angle (ωt) rad');
+    ylabel('Vak (V)');
+    title('Voltage across the load Vak vs Angle (ωt) rad');
     grid on;
+    figure; 
 end
 
-function plot_i_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+function plot_i_thyristor_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     y = arrayfun(@(xi) i_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq), x);
-    plot(x, y, 'LineWidth', 1.4);
-    xlabel('Angle (rad)'), ylabel('i(t) (A)');
-    title('Current i vs Angle');
+    plot(x, y);
+    xlabel('Angle (ωt) rad');
+    ylabel('Current i (A)');
+    title('Current i vs Angle (ωt) rad');
     grid on;
+    figure;
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Integration / RMS / power
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function Iavg = compute_Iavg(Vm, E, esr, alpha, beta)
-    f = @(x) i_t(x, alpha, beta, Vm, E, esr);
-    % integrate over full cycle (function returns 0 outside conduction)
-    res = integral(@(t) f(t), 0, 2*pi, 'ArrayValued', true);
-    Iavg = res / (2*pi);
+    integrand = @(xx) arrayfun(@(xval) i_t(xval, alpha, beta, Vm, E, esr), xx);
+    result = integral(integrand, 0, 2*pi, 'ArrayValued', true, 'RelTol',1e-6,'AbsTol',1e-9);
+    Iavg = (1.0 / (2.0 * pi)) * result;
 end
 
 function Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    f2 = @(x) (i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)).^2;
-    res = integral(@(t) f2(t), 0, 2*pi, 'ArrayValued', true);
-    Irms = sqrt(res / (2*pi));
+    integrand = @(xx) arrayfun(@(xval) i_t_including_leakage(xval, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq).^2, xx);
+    integral_val = integral(integrand, 0, 2.0*pi, 'ArrayValued', true, 'RelTol',1e-6,'AbsTol',1e-9);
+    Irms = sqrt(integral_val / (2.0 * pi));
 end
 
-function p = compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+function P = compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     Vak = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq);
-    i   = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
-    p = Vak .* i + esr .* (i.^2);
+    iVal = i_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
+    P = Vak .* iVal + esr .* (iVal.^2);
 end
 
-function Pavg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-    fun = @(x) compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
-    res = integral(@(t) fun(t), 0, 2*pi, 'ArrayValued', true);
-    Pavg = res / (2*pi);
+function P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+    power_loss_func = @(xx) arrayfun(@(xval) compute_power_loss(xval, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq), xx);
+    result = integral(power_loss_func, 0, 2*pi, 'ArrayValued', true, 'RelTol',1e-6,'AbsTol',1e-9);
+    P_loss_avg = (1.0 / (2.0 * pi)) * result;
 end
 
 function plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
     y = zeros(size(alpha_array));
     for k = 1:numel(alpha_array)
         alpha = alpha_array(k);
-        % compute Irms (not used inside compute_average_power_loss, but kept for parity)
+        % Irms computed but unused (kept like original)
         Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
-        y(k) = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
+        P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
+        y(k) = P_loss_avg;
     end
-    plot(alpha_array, y, 'LineWidth', 1.4);
-    xlabel('Firing Angle (rad)'), ylabel('Average Power Loss (W)');
+    plot(alpha_array, y);
+    xlabel('Firing Angle (rad)');
+    ylabel('Average Power Loss (W)');
     title('Average Power Loss vs Firing Angle');
     grid on;
+    figure;
 end
 
-function plot_power_loss_with_t(x, Vm, E, esr, ileak, tr, tf, freq, alpha, beta)
-    y = arrayfun(@(xi) compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, 0, tr, tf, freq), x);
-    plot(x, y, 'LineWidth', 1.4);
-    xlabel('Angle (rad)'), ylabel('Power Loss (W)');
+function plot_power_loss_with_t(alpha, beta, x, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+    y = arrayfun(@(xi) compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq), x);
+    plot(x, y);
+    xlabel('Angle (ωt) rad');
+    ylabel('Power Loss (W)');
     title('Power Loss vs Angle');
     grid on;
+    figure;
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Time of charging
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function [alphas, Iavg_arr, charging_time] = time_of_charging(Vrms, E, esr, C, step, degrees, showPlot, charging_time_scale, initial_soc, required_charging_time)
-    if nargin < 5, step = 0.01; end
-    if nargin < 6, degrees = true; end
-    if nargin < 7, showPlot = true; end
-    if nargin < 8, charging_time_scale = 'linear'; end
-    if nargin < 9, initial_soc = 0.0; end
-    if nargin < 10, required_charging_time = 0.0; end
-
-    Vm = sqrt(2)*Vrms;
-    [alpha1, beta] = find_range_of_alphas_and_beta(E, Vm);
-    alphas = make_alpha_array(alpha1, beta, step);
-
-    Iavg_arr = zeros(size(alphas));
-    for k = 1:numel(alphas)
-        Iavg_arr(k) = compute_Iavg(Vm, E, esr, alphas(k), beta);
+function charging_time = compute_charging_time(Iavg, C)
+    % Compute charging time (hours) from capacity C (Ah) and Iavg (A)
+    charging_time = nan(size(Iavg));
+    if ~isempty(Iavg)
+        positive = Iavg > 0;
+        if ~isempty(C)
+            charging_time(positive) = C ./ Iavg(positive);
+        end
     end
+end
 
-    % charging time C (Ah) / Iavg (A) -> hours? In your python you left as seconds, here we keep same units: C in Ah, I in A -> hours
-    charging_time = nan(size(Iavg_arr));
-    pos = Iavg_arr > 0;
-    charging_time(pos) = C ./ Iavg_arr(pos);
-
-    % Plot
-    if degrees
+function plot_time_of_charging(alphas, beta, Vm, E, esr, C, degreesFlag, charging_time_scale)
+    if nargin < 7
+        degreesFlag = true;
+    end
+    if nargin < 8
+        charging_time_scale = 'linear';
+    end
+    if degreesFlag
         x = rad2deg(alphas);
-        xlabelStr = 'Firing angle (deg)';
+        xlabelTxt = 'Firing angle (deg)';
     else
         x = alphas;
-        xlabelStr = 'Firing angle (rad)';
+        xlabelTxt = 'Firing angle (rad)';
     end
-
-    figure;
-    yyaxis left;
-    plot(x, Iavg_arr, '-o'); grid on;
+    [Iavg, charging_time] = time_of_charging(Vm, E, esr, C, alphas, beta);
+    
+    figure('Units','normalized','Position',[0.1 0.1 0.6 0.6]);
+    yyaxis left
+    plot(x, Iavg, '-o', 'MarkerSize', 4);
     ylabel('Iavg (A)');
-
-    yyaxis right;
-    plot(x, charging_time, '-s');
-    ylabel('Charging time (h)'); % interpreted as hours because C (Ah) / I (A) -> hours
-    if ~strcmp(charging_time_scale, 'linear')
-        set(gca, 'YScale', charging_time_scale);
+    xlabel(xlabelTxt, 'FontSize', 11);
+    grid on;
+    set(gca,'FontSize',11);
+    
+    if ~all(isnan(charging_time))
+        yyaxis right
+        plot(x, charging_time, '-s', 'MarkerSize', 4);
+        ylabelText = 'Charging time (h)';
+        if exist('charging_time_scale','var') && ~strcmp(charging_time_scale,'linear')
+            set(gca, 'YScale', charging_time_scale);
+            ylabelText = sprintf('%s (%s)', ylabelText, charging_time_scale);
+        end
+        ylabel(ylabelText);
     end
+    
+    title(sprintf('Iavg and charging time vs firing angle (Vrms=%g V, E=%g V, esr=%g ohms, C=%g Ah)', Vm/sqrt(2), E, esr, C));
+    figure;
+end
 
-    xlabel(xlabelStr);
-    title(sprintf('Iavg and charging time vs firing angle (Vrms=%g, E=%g, esr=%g, C=%gAh)', Vrms, E, esr, C));
+function new_soc = compute_final_soc(Iavg, initial_soc, C, required_charging_time)
+    % initial_soc in percent (0-100)
+    new_soc = (Iavg .* required_charging_time + (initial_soc/100.0) * C) ./ C;
+    new_soc = new_soc * 100.0;
+    new_soc = min(max(new_soc, 0.0), 100.0);
+end
 
-    if required_charging_time > 0 && initial_soc > 0
-        new_soc = (Iavg_arr * required_charging_time + (initial_soc/100.0).*C) ./ C;
-        new_soc = new_soc * 100.0;
-        new_soc = min(max(new_soc, 0), 100);
-
-        figure;
-        plot(x, new_soc, '-o'); grid on;
-        xlabel(xlabelStr);
-        ylabel('Final SOC (%)');
-        title(sprintf('Final SOC vs Firing Angle (Init SOC=%g%%, Time=%gh)', initial_soc, required_charging_time));
+function plot_final_soc(alphas, beta, Vm, E, esr, initial_soc, C, required_charging_time, degreesFlag)
+    if nargin < 9
+        degreesFlag = true;
     end
+    if degreesFlag
+        x = rad2deg(alphas);
+        xlabelTxt = 'Firing angle (deg)';
+    else
+        x = alphas;
+        xlabelTxt = 'Firing angle (rad)';
+    end
+    
+    [Iavg, ~] = time_of_charging(Vm, E, esr, C, alphas, beta);
+    new_soc = compute_final_soc(Iavg, initial_soc, C, required_charging_time);
+    
+    figure;
+    plot(x, new_soc, '-o', 'MarkerSize', 4);
+    xlabel(xlabelTxt, 'FontSize', 11);
+    ylabel('Final State of Charge (%)', 'FontSize', 11);
+    grid on;
+    title(sprintf('Final SOC vs Firing Angle\nInit SOC=%g%%, Time=%gh, C=%gAh', initial_soc, required_charging_time, C));
+    ylim([0 100]);
+    figure;
+end
+
+function [Iavg, charging_time] = time_of_charging(Vm, E, esr, C, alphas, beta)
+    Iavg = zeros(size(alphas));
+    for k = 1:numel(alphas)
+        Iavg(k) = compute_Iavg(Vm, E, esr, alphas(k), beta);
+    end
+    charging_time = compute_charging_time(Iavg, C);
 end
