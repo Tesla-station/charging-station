@@ -51,17 +51,17 @@ function full_wave_rectifier_CT(Vrms, f, E, R, capacity, opts)
         plot_final_soc(alphas_bat_charging, Vm, E, R, opts.inSOC, capacity, opts.chTime, beta_bat_charging, true);
     end
 
-    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf
-        plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, f);
-    end
-
-    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Vtr && opts.Vtf
-        plot_Vak_with_t(x, alpha1, beta, Vm, E, opts.Vforward, opts.Vtr, opts.Vtf, f);
-    end
-
-    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf && opts.Vtr && opts.Vtf
-        plot_power_loss_with_t(x, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, opts.Vtr, opts.Vtf, f, alpha1, beta);
-    end
+    % if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf
+    %     plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, f);
+    % end
+    % 
+    % if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Vtr && opts.Vtf
+    %     plot_Vak_with_t(x, alpha1, beta, Vm, E, opts.Vforward, opts.Vtr, opts.Vtf, f);
+    % end
+    % 
+    % if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf && opts.Vtr && opts.Vtf
+    %     plot_power_loss_with_t(x, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, opts.Vtr, opts.Vtf, f, alpha1, beta);
+    % end
 
     if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf && opts.Vtr && opts.Vtf
         plot_power_loss_with_alpha(alphas, beta, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, opts.Vtr, opts.Vtf, f);
