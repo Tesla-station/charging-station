@@ -1,35 +1,71 @@
-function full_wave_rectifier_CT()
-% RUN_THRYRISTOR_MODEL  Convert of provided Python code into a single MATLAB file.
-% Save this file as run_thyristor_model.m and call run_thyristor_model().
+function full_wave_rectifier_CT(Vrms, f, E, R, capacity, opts)
+    arguments
+        Vrms double = 0.0
+        f double = 0.0
+        E double = 0.0
+        R double = 0.0
+        capacity double = 0.0
+        opts.Vforward double = 0.0
+        opts.Ileak double = 0.0
+        opts.Itr double = 0.0
+        opts.Itf double = 0.0
+        opts.Vtr double = 0.0
+        opts.Vtf double = 0.0
+        opts.inSOC double = 0.0
+        opts.chTime double = 0.0 % hours
+        opts.alphaStep double = 0.01
+        opts.verbose logical = true
+    end
 
-%% Main parameters (same as Python __main__)
-Vrms = 60;
-E = 12;
-esr = 4.256;
-capacity = 100;
-v_drop = 1.2;
-tr = 10*10^(-6);  % rise time (s)
-tf = 5*10^(-6);   % fall time (s)
-freq = 50;        % Hz
-ileak = 0.02;     % A
-Vm = sqrt(2)*Vrms;
+    %% Derived quantities
+    Vm = sqrt(2) * Vrms;
 
-% find alpha1 and beta considering v_drop
-[alpha1, beta] = find_range_of_alphas_and_beta_with_v_drop(E, v_drop, Vm);
+    %% Log inputs (optional)
+    if opts.verbose
+        fprintf("Running FWR charging with:\n");
+        fprintf(" Vrms = %.2f V\n f = %.1f Hz\n Battery = %.2f V\n", Vrms, f, E);
+        fprintf(" R = %.3f ohm,  Capacity = %.2f Ah\n", R, capacity);
+    end
 
-% make alpha array
-alphas = make_alpha_array(alpha1, beta, 0.01);
+    %% Find firing interval
+    [alpha1, beta] = find_range_of_alphas_and_beta_with_v_drop(E, opts.Vforward, Vm);
 
-% x axis for phase plots
-x = linspace(0, 2*pi, 10000);
+    %% Alpha sweep
+    alphas = make_alpha_array(alpha1, beta, opts.alphaStep);
 
-% Plots and computations
-plot_time_of_charging(alphas, Vm, E, esr, capacity, beta, true, 'log', Vrms);
-plot_final_soc(alphas, Vm, E, esr, 30.0, capacity, 0.5, beta, true);
-plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
-plot_Vak_with_t(x, alpha1, beta, Vm, E, v_drop, tr, tf, freq);
-plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha1, beta);
-plot_power_loss_with_alpha(alphas, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
+    %% Find firing interval
+    [alpha1_bat_charging, beta_bat_charging] = find_range_of_alphas_and_beta(E, Vm);
+
+    %% Alpha sweep
+    alphas_bat_charging = make_alpha_array(alpha1_bat_charging, beta_bat_charging, opts.alphaStep);
+
+    %% Time axis
+    x = linspace(0, 2*pi, 10000);
+
+    %% PLOTS / SIMULATION
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0
+        plot_time_of_charging(alphas_bat_charging, Vm, E, R, capacity, beta_bat_charging, true, 'log');
+    end
+    
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.inSOC && opts.chTime
+        plot_final_soc(alphas_bat_charging, Vm, E, R, opts.inSOC, capacity, opts.chTime, beta_bat_charging, true);
+    end
+
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf
+        plot_i_thyristor_with_t(x, alpha1, beta, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, f);
+    end
+
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Vtr && opts.Vtf
+        plot_Vak_with_t(x, alpha1, beta, Vm, E, opts.Vforward, opts.Vtr, opts.Vtf, f);
+    end
+
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf && opts.Vtr && opts.Vtf
+        plot_power_loss_with_t(x, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, opts.Vtr, opts.Vtf, f, alpha1, beta);
+    end
+
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.Ileak && opts.Vforward && opts.Itr && opts.Itf && opts.Vtr && opts.Vtf
+        plot_power_loss_with_alpha(alphas, beta, Vm, E, R, opts.Ileak, opts.Vforward, opts.Itr, opts.Itf, opts.Vtr, opts.Vtf, f);
+    end
 
 end
 
@@ -117,11 +153,11 @@ else
 end
 end
 
-function val = i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+function val = i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq)
 % Convert rise/fall times to angular ranges
 omega = 2*pi*freq;
-d_theta_r = omega * tr;
-d_theta_f = omega * tf;
+d_theta_r = omega * Itr;
+d_theta_f = omega * Itf;
 
 natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop);
 
@@ -177,12 +213,11 @@ end
 val = -ileak;
 end
 
-function val = i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+function val = i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq)
 % same shape as battery current but simpler (thyristor 1)
 omega = 2*pi*freq;
-d_theta_r = omega * tr;
-d_theta_f = omega * tf;
-
+d_theta_r = omega * Itr;
+d_theta_f = omega * Itf;
 natural_I = i_t_including_leakage_simplified(x, alpha, beta, Vm, E, esr, ileak, v_drop);
 
 if x < alpha
@@ -225,10 +260,10 @@ m = (y2 - y1) / (x2 - x1);
 b = y1 - m * x1;
 end
 
-function val = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
+function val = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, Vtr, Vtf, freq)
 omega = 2*pi*freq;
-d_theta_r = omega * tr;
-d_theta_f = omega * tf;
+d_theta_r = omega * Vtr;
+d_theta_f = omega * Vtf;
 
 % Region 1
 if x < alpha
@@ -279,8 +314,8 @@ end
 val = vs_t(x, Vm) - E;
 end
 
-function plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, tr, tf, freq)
-y = arrayfun(@(xi) Vak_including_drop(xi, alpha, beta, Vm, E, v_drop, tr, tf, freq), x);
+function plot_Vak_with_t(x, alpha, beta, Vm, E, v_drop, Vtr, Vtf, freq)
+y = arrayfun(@(xi) Vak_including_drop(xi, alpha, beta, Vm, E, v_drop, Vtr, Vtf, freq), x);
 figure; plot(x, y);
 xlabel('Angle (\omega t) rad'); ylabel('Vak (V)');
 title('Vak including loss vs Angle (\omega t)');
@@ -295,8 +330,8 @@ title('Current i without loss vs Angle (\omega t)');
 grid on;
 end
 
-function plot_i_thyristor_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-y = arrayfun(@(xi) i_thyristor_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq), x);
+function plot_i_thyristor_with_t(x, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq)
+y = arrayfun(@(xi) i_thyristor_t_including_leakage(xi, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq), x);
 figure; plot(x, y);
 xlabel('Angle (\omega t) rad'); ylabel('Current i (A)');
 title('Current i thyristor including leakage vs Angle (\omega t)');
@@ -310,32 +345,32 @@ result = integral(f, 0, 2*pi, 'ArrayValued', true, 'RelTol',1e-6, 'AbsTol',1e-12
 Iavg = (1.0 / (2.0 * pi)) * result;
 end
 
-function Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-f = @(xx) arrayfun(@(xval) i_battery_t_including_leakage(xval, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq).^2, xx);
+function Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq)
+f = @(xx) arrayfun(@(xval) i_battery_t_including_leakage(xval, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq).^2, xx);
 integral_val = integral(f, 0, 2*pi, 'ArrayValued', true, 'RelTol',1e-6, 'AbsTol',1e-12);
 Irms = sqrt(integral_val / (2.0 * pi));
 end
 
-function pl = compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-Vak_thyrestor_1 = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, tr, tf, freq);
-i_thyristor_1 = i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
-resistance_loss = esr * (i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq).^2);
+function pl = compute_power_loss(x, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq)
+Vak_thyrestor_1 = Vak_including_drop(x, alpha, beta, Vm, E, v_drop, Vtr, Vtf, freq);
+i_thyristor_1 = i_thyristor_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq);
+resistance_loss = esr * (i_battery_t_including_leakage(x, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq).^2);
 pl = 2*(Vak_thyrestor_1 .* i_thyristor_1) + resistance_loss;
 end
 
-function P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
-f = @(xx) arrayfun(@(xval) compute_power_loss(xval, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq), xx);
+function P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq)
+f = @(xx) arrayfun(@(xval) compute_power_loss(xval, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq), xx);
 result = integral(f, 0, 2*pi, 'ArrayValued', true, 'RelTol',1e-6, 'AbsTol',1e-12);
 P_loss_avg = (1.0 / (2.0 * pi)) * result;
 end
 
-function plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq)
+function plot_power_loss_with_alpha(alpha_array, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq)
 y = zeros(size(alpha_array));
 for k = 1:numel(alpha_array)
     alpha = alpha_array(k);
     % Irms is computed but not used in original except maybe for reference
-    Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq); %#ok<NASGU>
-    P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq);
+    Irms = compute_i_t_including_leakage_rms(alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, freq); %#ok<NASGU>
+    P_loss_avg = compute_average_power_loss(alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq);
     y(k) = P_loss_avg;
 end
 figure; plot(alpha_array, y);
@@ -343,8 +378,8 @@ xlabel('Firing Angle (rad)'); ylabel('Average Power Loss (W)');
 title('Average Power Loss vs Firing Angle'); grid on;
 end
 
-function plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, tr, tf, freq, alpha, beta)
-y = arrayfun(@(xi) compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, v_drop, tr, tf, freq), x);
+function plot_power_loss_with_t(x, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq, alpha, beta)
+y = arrayfun(@(xi) compute_power_loss(xi, alpha, beta, Vm, E, esr, ileak, v_drop, Itr, Itf, Vtr, Vtf, freq), x);
 figure; plot(x, y);
 xlabel('Angle (\omega t) rad'); ylabel('Power Loss (W)');
 title('Power Loss vs Angle (\omega t)'); grid on;
@@ -359,11 +394,8 @@ if ~isempty(C)
 end
 end
 
-function plot_time_of_charging(alphas, Vm, E, esr, C, beta, degrees, charging_time_scale, Vrms)
+function plot_time_of_charging(alphas, Vm, E, esr, C, beta, degrees, charging_time_scale)
 % Plot Iavg (left axis) and charging_time (right axis).
-if nargin < 11
-    Vrms = [];
-end
 if degrees
     x = rad2deg(alphas);
     xlabel_text = 'Firing angle (deg)';
@@ -392,7 +424,7 @@ if ~all(isnan(charging_time))
     ylabel(ylabel_text);
 end
 
-title(sprintf('Iavg and charging time vs firing angle (Vrms=%g V, E=%g V, esr=%g ohms, C=%g Ah)', Vrms, E, esr, C), 'Interpreter','none');
+title(sprintf('Iavg and charging time vs firing angle (Vpeak=%g V, E=%g V, esr=%g ohms, C=%g Ah)', Vm, E, esr, C), 'Interpreter','none');
 end
 
 function new_soc = compute_final_soc(Iavg, initial_soc, C, required_charging_time)
