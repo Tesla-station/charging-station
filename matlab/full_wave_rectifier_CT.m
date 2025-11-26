@@ -47,7 +47,7 @@ function full_wave_rectifier_CT(Vrms, f, E, R, capacity, opts)
         plot_time_of_charging(alphas_bat_charging, Vm, E, R, capacity, beta_bat_charging, true, 'log');
     end
     
-    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.inSOC && opts.chTime
+    if E > 0 && R > 0 && capacity > 0 && Vm > 0 && opts.inSOC >= 0 && opts.chTime > 0
         plot_final_soc(alphas_bat_charging, Vm, E, R, opts.inSOC, capacity, opts.chTime, beta_bat_charging, true);
     end
 

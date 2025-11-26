@@ -108,7 +108,7 @@ function ChargeFWR(Vrms,f,E,R,Ecap,EcapUnit,opts)
     avgCurrents = calcAvgCurrentValues(minFiringTime,maxFiringTime,firingSamplingRate,Vs,opts.Vforward,R,f,E,"FWR");
 
     % Plot avgCurrent w.r.t firingtime REMOVE NOT NEEDED
-    %anglePlotter(minFiringTime,maxFiringTime,firingSamplingRate,avgCurrents,"Firing Angle","avgCurrent",f)
+    anglePlotter(minFiringTime,maxFiringTime,firingSamplingRate,avgCurrents,"Firing Angle","avgCurrent",f)
 
     % Calculate Charge time w.r.t firing angle
     chargeTimes = calcChargeTimes(E,avgCurrents,Ecap,EcapUnit);
@@ -206,6 +206,7 @@ function finalSoC = calcFinalSoC(chargeTime,Ecap,avgCurrents,E,SoC,EcapUnit)
         finalSoC = zeros(size(avgCurrents));
         disp("Please use Wh or Ah as the input of the capacity type");
     end
+    finalSoC = finalSoC * 100.0;
 end
 
 % Linear function generator

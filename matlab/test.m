@@ -1,0 +1,3 @@
+half_wave_rectifier(60, 50, 12, 4.256, 100, Vforward=1.2, chTime=1.0, Ileak=0.02, inSOC=20, Itf=5e-6, Itr=10e-6, Vtf=5e-6, Vtr=10e-6)
+full_wave_rectifier_CT(60, 50, 12, 4.256, 100, Vforward=1.2, chTime=1.0, Ileak=0.02, inSOC=20, Itf=5e-6, Itr=10e-6, Vtf=5e-6, Vtr=10e-6)
+ChargeFWR(60, 50, 12, 4.256, 100, 'Ah', Ileak=0.02, tfallI=5e-6, tfallV=5e-6, triseI=10e-6, triseV=10e-6,Vforward=1.2, SoC=20, chargeTime=1.0)
