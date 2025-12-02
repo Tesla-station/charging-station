@@ -1,5 +1,5 @@
 f = 50; % Hz
-alpha_deg = 30; % To change the firing angle you only need to change this value
+alpha_deg; % To change the firing angle you only need to change this value, leave it empty for the sweeper.
 alpha_2_deg = 180 + alpha_deg;
 Vin_rms = 230; % Volt
 Vin_peak = sqrt(2)*Vin_rms;
