@@ -1,60 +1,80 @@
 
 # ⚡ Charging Station Simulation
 
-A simulation toolbox for studying rectifier-based charging stations.  
-This repository now includes MATLAB scripts, Simulink models, and Python implementations for analyzing half-wave, full-wave, and center-tapped rectifiers.
+A complete simulation environment for studying charging stations based on **half-wave**, **full-wave**, and **center-tapped rectifiers**.  
+The repository includes **MATLAB scripts**, **Simulink models**, and **Python implementations**, allowing you to analyze and compare rectifier behavior across multiple tools.
 
 ---
 
-## ✨ New Features (Updated)
+## 🚀 Features
 
-The MATLAB section now includes:
-
-- **Simulink models** for:
+### 🔧 MATLAB Features
+- Simulation of:
   - Half-wave rectifier  
   - Full-wave rectifier  
   - Center-tapped full-wave rectifier  
+- MATLAB scripts for testing and visualization  
+- **Live script (`main.mlx`)**
+- **Simulink implementations** of all rectifiers  
+- **`simulink_params.m`** – parameter file used across all Simulink models  
+- **`sweeper.m`** – automatically:
+  - Sweeps through firing angles  
+  - Computes average output voltage for all rectifiers  
+  - Generates comparison plots  
+  - Prepares all parameters in the workspace for Simulink models  
 
-- **`simulink_params.m`**  
-  Centralized parameter file for all Simulink models.
+> **Run `sweeper.m` first**, then open or simulate any Simulink rectifier model.
 
-- **`sweeper.m`**  
-  A MATLAB script that:
-  - Sweeps firing angles  
-  - Computes the **average output voltage** for each rectifier  
-  - Generates comparative plots  
+### 🐍 Python Features
+- Python implementations of:
+  - Half-wave rectifier  
+  - Full-wave center-tapped rectifier  
+- Easy to modify and extend  
+- Uses `numpy`, `matplotlib`, and `scipy`  
 
-> **Important:**  
-> Run **`sweeper.m` first**, because it loads the required parameters into the MATLAB workspace.  
-> After that, you may run any Simulink rectifier model individually.
+### General Features
+- Multiple versions (MATLAB + Python) for flexibility  
+- Easy to clone, run, and experiment  
+- Good for learning, prototyping, and comparing methodologies  
 
+---
 
+## 📂 Repository Structure
 
-## 📁 Repository Structure
-
+```
 
 /matlab
 ├── half_wave.slx
 ├── full_wave.slx
-├── full_wace_center_tapped.slx
+├── full_wave_center_tapped.slx
 ├── simulink_params.m
 ├── sweeper.m
+├── main.mlx
 └── (other MATLAB scripts)
 
 python/
+├── full_wave_rectifier_C_T.py
+├── half_wave_rectifier.py
+
 README.md
+
+```
 
 
 ## 🛠️ Getting Started
 
 ### Requirements
 
-- **MATLAB** (with Simulink)
-- **Python 3.7+** (for the Python implementation)
-- Python libraries:
-  - numpy  
-  - matplotlib  
-  - scipy  
+#### MATLAB
+- MATLAB R2021+ recommended  
+- Simulink (required for .slx models)
+
+#### Python
+- Python 3.7+
+- Required libraries:
+  - `numpy`
+  - `matplotlib`
+  - `scipy`
 
 ---
 
@@ -66,22 +86,23 @@ README.md
    ```matlab
    cd('<path-to-repo>/matlab')
 
-
 3. **Run the parameter and sweep script first:**
 
    ```matlab
    sweeper
    ```
 
-   This populates the workspace with parameters used by all Simulink models.
+4. Run any Simulink model:
 
-4. To run a specific rectifier model, simply open and run it:
+   * `half_wave.slx`
+   * `full_wave.slx`
+   * `full_wave_center_tapped.slx`
 
-   * `half_wave_rectifier.slx`
-   * `full_wave_rectifier.slx`
-   * `center_tapped_rectifier.slx`
+5. Or open the Live Script:
 
-5. Or run any additional MATLAB scripts provided in the folder.
+   ```matlab
+   main.mlx
+   ```
 
 ---
 
@@ -93,12 +114,13 @@ python full_wave_rectifier_C_T.py
 python half_wave_rectifier.py
 ```
 
-Optional: use a virtual environment.
+### Optional: Create a virtual environment
 
 ```bash
 python -m venv venv
-source venv/bin/activate     # Linux/macOS
-# or venv\Scripts\activate   # Windows
+source venv/bin/activate        # macOS / Linux
+# or
+venv\Scripts\activate           # Windows
 ```
 
 Install dependencies:
@@ -109,29 +131,29 @@ pip install numpy matplotlib scipy
 
 ---
 
-## 📊 MATLAB Example: Sweeper Plot
+## 📊 MATLAB Example: Sweeper
 
-`sweeper.m` automatically:
+Running `sweeper.m`:
 
-* Iterates over firing angle values
-* Computes the average output voltage for:
+* Iterates firing angle values
+* Computes average output voltage for:
 
   * Half-wave
   * Full-wave
-  * Center-tapped
-* Displays a comparison plot
-* Stores results in workspace variables for reuse in Simulink
+  * Center-tapped full-wave
+* Generates comparison plots
+* Makes parameters available for Simulink simulations
 
 ---
 
-## 🎯 Purpose of This Project
+## 🎯 Why Both MATLAB and Python?
 
-Including both MATLAB/Simulink and Python implementations allows you to:
+Having both environments allows you to:
 
-* Compare analytic vs. simulation-based results
-* Use Simulink for block-level modeling
-* Use MATLAB scripts for parameter sweeps and automated plots
-* Use Python for scripting, automation, or external tooling
+* Validate analytical formulas using simulation
+* Compare block-diagram Simulink results with Python numerical models
+* Use MATLAB for visualization and model-based design
+* Use Python for fast scripting, automation, and external integration
 
 ---
 
@@ -142,7 +164,7 @@ Contributions are welcome!
 1. Fork the repository
 2. Create a new branch
 3. Add your improvements
-4. Open a Pull Request
+4. Submit a Pull Request
 
 ---
 
