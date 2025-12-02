@@ -1,4 +1,4 @@
-alphas = 0:10:180;     % Sweep from 0° to 180° in steps of 5°
+alphas = 0:10:180;     % Sweep from 0° to 180° in steps of 10°
 Vmean_half_wave_values = zeros(size(alphas));
 Vmean_full_wave_values = zeros(size(alphas));
 Vmean_full_wave_ct_values = zeros(size(alphas));
@@ -11,7 +11,7 @@ for i = 1:length(alphas)
     % Run simulation
     simOut_half_wave = sim('half_wave');   % half wave
     simOut_full_wave = sim('full_wave');   % full wave
-    simOut_full_wave_ct = sim('full_wave_center_tapped');
+    simOut_full_wave_ct = sim('full_wave_center_tapped'); % center tapped
     % Read mean voltage
     Vmean_half_wave_values(i) = simOut_half_wave.Vmean(end);
     Vmean_full_wave_values(i) = simOut_full_wave.Vmean(end);

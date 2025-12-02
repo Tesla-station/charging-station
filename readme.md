@@ -1,107 +1,149 @@
-```markdown
-# charging-station
 
-A simple simulation / example of a charging station based on full-wave and half-wave rectifiers.  
-This repository provides two versions of the charging station implementation: one in MATLAB, and one in Python — you can run whichever you prefer.
+# ⚡ Charging Station Simulation
 
-## ⚙️ Features
+A simulation toolbox for studying rectifier-based charging stations.  
+This repository now includes MATLAB scripts, Simulink models, and Python implementations for analyzing half-wave, full-wave, and center-tapped rectifiers.
 
-- Full-wave rectifier charging station simulation  
-- Half-wave rectifier charging station simulation  
-- Both MATLAB and Python versions available  
-- Easy to clone, run and experiment  
+---
 
-## 📂 Repository structure
+## ✨ New Features (Updated)
 
-```
+The MATLAB section now includes:
 
-/matlab     — MATLAB version of the charging station code
-/python     — Python version of the charging station code
-README.md   — this documentation file
+- **Simulink models** for:
+  - Half-wave rectifier  
+  - Full-wave rectifier  
+  - Center-tapped full-wave rectifier  
 
-````
+- **`simulink_params.m`**  
+  Centralized parameter file for all Simulink models.
+
+- **`sweeper.m`**  
+  A MATLAB script that:
+  - Sweeps firing angles  
+  - Computes the **average output voltage** for each rectifier  
+  - Generates comparative plots  
+
+> **Important:**  
+> Run **`sweeper.m` first**, because it loads the required parameters into the MATLAB workspace.  
+> After that, you may run any Simulink rectifier model individually.
+
+
+
+## 📁 Repository Structure
+
+
+/matlab
+├── half_wave.slx
+├── full_wave.slx
+├── full_wace_center_tapped.slx
+├── simulink_params.m
+├── sweeper.m
+└── (other MATLAB scripts)
+
+python/
+README.md
+
 
 ## 🛠️ Getting Started
 
-### Prerequisites
+### Requirements
 
-- For MATLAB version: a working installation of MATLAB.  
-- For Python version: Python (preferably 3.7+) and required dependencies (if any — see below).
+- **MATLAB** (with Simulink)
+- **Python 3.7+** (for the Python implementation)
+- Python libraries:
+  - numpy  
+  - matplotlib  
+  - scipy  
 
-### Clone the repository
+---
 
-```bash
-git clone https://github.com/Tesla-station/charging-station.git
-cd charging-station
-````
-
-### Run the MATLAB version
+## ▶️ Running the MATLAB Version
 
 1. Open MATLAB.
-2. In MATLAB, open the project or navigate to the `matlab` folder. ([mathworks.com][1])
-3. Run the main script (for example `main.m`, or as documented in the `matlab/` folder).
+2. Navigate to the MATLAB folder:
 
-### Run the Python version
+   ```matlab
+   cd('<path-to-repo>/matlab')
 
-1. Navigate to the `python` folder:
 
-   ```bash
-   cd python
+3. **Run the parameter and sweep script first:**
+
+   ```matlab
+   sweeper
    ```
-2. (Optional) Create and activate a virtual environment.
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # Linux/MacOS
-   # or `venv\Scripts\activate` on Windows
-   ```
-3. Install dependencies
+   This populates the workspace with parameters used by all Simulink models.
 
-    numpy
-    matplot
-    scipy
+4. To run a specific rectifier model, simply open and run it:
 
-   Otherwise, ensure you have the needed libraries installed.
+   * `half_wave_rectifier.slx`
+   * `full_wave_rectifier.slx`
+   * `center_tapped_rectifier.slx`
 
-## 🧪 Example Usage
+5. Or run any additional MATLAB scripts provided in the folder.
 
-### MATLAB
+---
 
-```matlab
-% In MATLAB:
-cd('<path-to-repo>/charging-station/matlab');
-test.m;
-main.mlx % the live script
-```
-
-### Python
+## ▶️ Running the Python Version
 
 ```bash
-cd <path-to-repo>/charging-station/python
+cd python
 python full_wave_rectifier_C_T.py
 python half_wave_rectifier.py
 ```
 
-You should see output representing the charging station simulation (e.g. rectifier behavior, charging characteristics).
+Optional: use a virtual environment.
 
-## 🎯 Why two implementations?
+```bash
+python -m venv venv
+source venv/bin/activate     # Linux/macOS
+# or venv\Scripts\activate   # Windows
+```
 
-Providing both MATLAB and Python versions allows you to:
+Install dependencies:
 
-* Work in whichever environment you are more comfortable with
-* Compare behavior between MATLAB and Python implementations
-* Use MATLAB version for quick prototyping and visualization
-* Use Python version for scripting, automation, or integration with other tools
+```bash
+pip install numpy matplotlib scipy
+```
 
-## 📖 Contributing
+---
 
-Contributions are welcome! If you want to add features, fix bugs, or improve documentation:
+## 📊 MATLAB Example: Sweeper Plot
 
-1. Fork the repository.
-2. Make your changes in a separate branch.
-3. Test your changes (in MATLAB or Python).
-4. Submit a Pull Request describing your changes.
+`sweeper.m` automatically:
 
+* Iterates over firing angle values
+* Computes the average output voltage for:
 
-Happy charging! ⚡
+  * Half-wave
+  * Full-wave
+  * Center-tapped
+* Displays a comparison plot
+* Stores results in workspace variables for reuse in Simulink
 
+---
+
+## 🎯 Purpose of This Project
+
+Including both MATLAB/Simulink and Python implementations allows you to:
+
+* Compare analytic vs. simulation-based results
+* Use Simulink for block-level modeling
+* Use MATLAB scripts for parameter sweeps and automated plots
+* Use Python for scripting, automation, or external tooling
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repository
+2. Create a new branch
+3. Add your improvements
+4. Open a Pull Request
+
+---
+
+Happy Simulating! ⚡🔌
